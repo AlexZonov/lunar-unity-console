@@ -113,7 +113,7 @@ namespace :lunar do
 
     # generate .projmod
     projmods = {
-        group: 'Lunar Console',
+        group: 'LunarConsole',
         frameworks: ['MessageUI.framework'],
         files: ios_files,
         excludes: %w(^.*.DS_Store$ ^.*.meta$ ^.*.mdown^ ^.*.pdf$ ^.*.svn$),

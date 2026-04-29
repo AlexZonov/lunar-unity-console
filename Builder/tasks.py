@@ -92,7 +92,7 @@ def _build_native_ios(c):
 
     # Generate .projmod
     projmods = {
-        "group": "Lunar Console",
+        "group": "LunarConsole",
         "frameworks": ["MessageUI.framework"],
         "files": ios_files,
         "excludes": [
