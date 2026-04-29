@@ -21,13 +21,27 @@
 
 
 #import "LUWindow.h"
-
 #import "Lunar.h"
 
 @implementation LUWindow
 
-- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event
-{
+- (instancetype)initWithWindowScene:(UIWindowScene *)windowScene {
+    self = [super initWithWindowScene:windowScene];
+    if (self) {
+        self.windowLevel = UIWindowLevelAlert + 1.0f;
+    }
+    return self;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.windowLevel = UIWindowLevelAlert + 1.0f;
+    }
+    return self;
+}
+
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
     return [self.rootViewController.view pointInside:point withEvent:event];
 }
 

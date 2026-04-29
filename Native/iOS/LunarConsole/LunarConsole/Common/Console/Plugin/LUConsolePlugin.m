@@ -25,6 +25,7 @@
 #import "Lunar.h"
 #import "LUConsolePluginImp.h"
 #import "LUPluginSettings.h"
+#import "LULittleHelper.h"
 
 static NSString *const kSettingsFilename = @"com.spacemadness.lunarmobileconsole.settings-2.bin";
 
@@ -112,32 +113,28 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
 
 - (void)showConsole
 {
-    [self hideOverlay];
-    [self hideWarning];
+    [self hideOverlay]; [self hideWarning];
 
-    if (_consoleWindow == nil) {
-        LUConsoleController *controller = [LUConsoleController controllerWithPlugin:self];
-        controller.emails = _settings.emails;
-        controller.delegate = self;
+    UIWindowScene *windowScene = LUGetWindowScene();
 
-        CGRect windowFrame = LUGetScreenBounds();
-        CGRect windowInitialFrame = windowFrame;
-        windowInitialFrame.origin.y -= CGRectGetHeight(windowFrame);
+    LUConsoleController *controller = [LUConsoleController controllerWithPlugin:self];
+    controller.emails = _settings.emails;
+    controller.delegate = self;
 
-        _consoleWindow = [[LUWindow alloc] initWithFrame:windowInitialFrame];
-        _consoleWindow.rootViewController = controller;
-        _consoleWindow.opaque = YES;
-        _consoleWindow.backgroundColor = [UIColor clearColor];
-        _consoleWindow.hidden = NO;
+    CGRect windowFrame = windowScene ? windowScene.coordinateSpace.bounds : LUGetScreenBounds();
+    CGRect windowInitialFrame = windowFrame; windowInitialFrame.origin.y -= windowFrame.size.height;
 
-        [UIView animateWithDuration:kWindowAnimationDuration
-                         animations:^{
-                            self->_consoleWindow.frame = windowFrame;
-                         }];
+    _consoleWindow = windowScene ? [[LUWindow alloc] initWithWindowScene:windowScene] : [[LUWindow alloc] initWithFrame:windowInitialFrame];
+    _consoleWindow.rootViewController = controller;
+    _consoleWindow.opaque = YES;
+    _consoleWindow.backgroundColor = [UIColor clearColor];
+    _consoleWindow.frame = windowInitialFrame;
+    _consoleWindow.hidden = NO;
 
-        [self registerNotifications];
-        [self disableGestureRecognition];
-    }
+    [UIView animateWithDuration:kWindowAnimationDuration animations:^{ self->_consoleWindow.frame = windowFrame; }];
+
+    [self registerNotifications];
+    [self disableGestureRecognition];
 }
 
 - (void)hideConsole
@@ -263,20 +260,18 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
 - (BOOL)showWarningWithMessage:(LULogMessage *)message
 {
     if (_warningWindow == nil) {
-		CGRect safeRect = [LUUIHelper safeAreaRect];
-		CGRect windowFrame = CGRectMake(
-            CGRectGetMinX(safeRect),
-            CGRectGetMinY(safeRect) + CGRectGetHeight(safeRect) - kWarningHeight,
-            CGRectGetWidth(safeRect),
-            kWarningHeight
-        );
-        _warningWindow = [[LUWindow alloc] initWithFrame:windowFrame];
+        CGRect safeRect = [LUUIHelper safeAreaRect];
+        CGRect windowFrame = CGRectMake(CGRectGetMinX(safeRect), CGRectGetMinY(safeRect) + CGRectGetHeight(safeRect) - kWarningHeight, CGRectGetWidth(safeRect), kWarningHeight);
+        
+        UIWindowScene *windowScene = LUGetWindowScene();
+        _warningWindow = windowScene ? [[LUWindow alloc] initWithWindowScene:windowScene] : [[LUWindow alloc] initWithFrame:windowFrame];
         _warningWindow.clipsToBounds = YES;
+        _warningWindow.frame = windowFrame;
 
         LUExceptionWarningController *controller = [[LUExceptionWarningController alloc] initWithMessage:message];
         controller.view.frame = _warningWindow.bounds;
         controller.delegate = self;
-		_warningWindow.rootViewController = controller;
+        _warningWindow.rootViewController = controller;
 
         _warningWindow.hidden = NO;
 
@@ -378,12 +373,14 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
 {
     LUAssert(_gestureRecognizer == nil);
     if (!_gestureRecognizer && _settings.gesture == LUConsoleGestureSwipeDown) {
-        UISwipeGestureRecognizer *gr = [[UISwipeGestureRecognizer alloc] initWithTarget:self
-                                                                                 action:@selector(handleGesture:)];
+        UISwipeGestureRecognizer *gr = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleGesture:)];
         gr.numberOfTouchesRequired = 2;
         gr.direction = UISwipeGestureRecognizerDirectionDown;
 
-        [[self keyWindow] addGestureRecognizer:gr];
+        UIWindow *keyWin = [self keyWindow];
+        if (keyWin) {
+            [keyWin addGestureRecognizer:gr];
+        }
 
         _gestureRecognizer = gr;
     }

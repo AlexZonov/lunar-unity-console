@@ -25,6 +25,7 @@
 // UI-related functions
 void   LUDisplayAlertView(NSString *title, NSString *message);
 CGRect LUGetScreenBounds(void);
+UIWindowScene* LUGetWindowScene(void) NS_AVAILABLE_IOS(13_0);
 
 UIInterfaceOrientation LUGetInterfaceOrientation(void);
 BOOL LUIsPortraitInterfaceOrientation(void);

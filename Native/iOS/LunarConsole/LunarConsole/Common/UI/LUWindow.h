@@ -23,5 +23,5 @@
 #import <UIKit/UIKit.h>
 
 @interface LUWindow : UIWindow
-
+- (instancetype)initWithWindowScene:(UIWindowScene *)windowScene NS_AVAILABLE_IOS(13_0);
 @end

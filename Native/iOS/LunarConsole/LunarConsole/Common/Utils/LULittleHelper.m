@@ -37,20 +37,19 @@ void LUDisplayAlertView(NSString *title, NSString *message)
 #pragma clang diagnostic pop
 }
 
-CGRect LUGetScreenBounds()
-{
-    if (LU_IOS_VERSION_AVAILABLE(__IPHONE_8_0)) {
-        return [UIScreen mainScreen].bounds;
+UIWindowScene* LUGetWindowScene() {
+    if (@available(iOS 13.0, *)) {
+        UIWindow *unityWindow = UnityGetMainWindow();
+        if (unityWindow) {
+            return unityWindow.windowScene;
+        }
     }
+    return nil;
+}
 
-    CGRect screenSize = [UIScreen mainScreen].bounds;
-    if (LUIsLandscapeInterfaceOrientation()) {
-        CGFloat width = CGRectGetWidth(screenSize);
-        CGFloat height = CGRectGetHeight(screenSize);
-        screenSize.size = CGSizeMake(height, width);
-    }
-
-    return screenSize;
+CGRect LUGetScreenBounds() {
+    UIWindowScene *windowScene = LUGetWindowScene();
+    return windowScene ? windowScene.coordinateSpace.bounds : [UIScreen mainScreen].bounds;
 }
 
 UIInterfaceOrientation LUGetInterfaceOrientation()

@@ -22,6 +22,7 @@
 
 #import "LUConsolePluginImp.h"
 #import "Lunar-Full.h"
+#import "LULittleHelper.h"
 
 BOOL LUConsoleIsFreeVersion = NO;
 BOOL LUConsoleIsFullVersion = YES;
@@ -88,11 +89,11 @@ static NSString *const kScriptMessageAction = @"console_action";
 - (void)showOverlay
 {
     if (_overlayWindow == nil) {
-        LUConsoleOverlayController *controller = [LUConsoleOverlayController controllerWithConsole:_plugin.console
-                                                                                          settings:_plugin.settings.logOverlay];
+        LUConsoleOverlayController *controller = [LUConsoleOverlayController controllerWithConsole:_plugin.console settings:_plugin.settings.logOverlay];
 
-		CGRect windowFrame = [LUUIHelper safeAreaRect];
-        _overlayWindow = [[LUWindow alloc] initWithFrame:windowFrame];
+        UIWindowScene *windowScene = LUGetWindowScene();
+        CGRect windowFrame = windowScene ? windowScene.coordinateSpace.bounds : [LUUIHelper safeAreaRect];
+        _overlayWindow = windowScene ? [[LUWindow alloc] initWithWindowScene:windowScene] : [[LUWindow alloc] initWithFrame:windowFrame];
         _overlayWindow.userInteractionEnabled = NO;
         _overlayWindow.rootViewController = controller;
         _overlayWindow.opaque = YES;
