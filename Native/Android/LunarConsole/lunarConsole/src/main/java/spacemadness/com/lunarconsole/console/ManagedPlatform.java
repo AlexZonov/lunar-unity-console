@@ -26,6 +26,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import com.unity3d.player.UnityPlayer;
 
@@ -56,7 +57,6 @@ public class ManagedPlatform implements Platform {
         if (currentActivity == null) {
             Log.e(PLUGIN, "UnityPlayer.currentActivity is null");
             return null;
-
         }
 
         UnityPlayer unityPlayer = resolveUnityPlayer(currentActivity);
@@ -65,7 +65,6 @@ public class ManagedPlatform implements Platform {
             return null;
         }
 
-
         // Cast to Object first to handle newer Unity versions where UnityPlayer may not extend View.
         // This avoids compilation errors while maintaining compatibility with older versions.
         Object unityPlayerObject = unityPlayer;
@@ -73,16 +72,24 @@ public class ManagedPlatform implements Platform {
             return (View) unityPlayerObject;
         }
 
+        // For Unity 6000.0+ and newer versions, get FrameLayout via reflection
+        // (method should exist in all supported Unity versions)
         try {
             final Method getFrameLayoutMethod = UnityPlayer.class.getMethod("getFrameLayout");
-            return (ViewGroup) getFrameLayoutMethod.invoke(unityPlayer);
+            View result = (View) getFrameLayoutMethod.invoke(unityPlayer);
+            if (result != null) {
+                Log.d(PLUGIN, "Successfully resolved FrameLayout via reflection");
+                return result;
+            }
         } catch (NoSuchMethodException e) {
-            Log.w(PLUGIN, "UnityPlayer does not have getFrameLayout method, skipping");
+            Log.w(PLUGIN, "UnityPlayer does not have getFrameLayout method");
             throw new IllegalStateException("UnityPlayer does not have getFrameLayout method", e);
         } catch (Exception e) {
-            Log.e(PLUGIN, "Error while invoking getFrameLayout method", e);
+            Log.e(PLUGIN, "Error while invoking getFrameLayout method: %s", e);
             throw new IllegalStateException("Error while invoking getFrameLayout method", e);
         }
+
+        throw new IllegalStateException("Failed to resolve touch recipient view");
     }
 
     @Override
@@ -94,20 +101,61 @@ public class ManagedPlatform implements Platform {
         }
     }
 
+
     /**
      * Attempts to resolve the UnityPlayer instance using multiple strategies.
-     * First tries reflection, then falls back to UI hierarchy search.
+     * First tries IUnityPlayerSupport interface, then reflection, then falls back to UI hierarchy search.
      *
      * @param activity The current activity
      * @return The UnityPlayer instance if found, null otherwise
      */
     @Nullable
     private static UnityPlayer resolveUnityPlayer(Activity activity) {
-        UnityPlayer unityPlayer = resolveUnityPlayerWithReflection(activity);
+        // First try the Unity 6000.0+ interface
+        UnityPlayer unityPlayer = resolveUnityPlayerViaInterface(activity);
         if (unityPlayer != null) {
             return unityPlayer;
         }
+
+        // Fall back to reflection
+        unityPlayer = resolveUnityPlayerWithReflection(activity);
+        if (unityPlayer != null) {
+            return unityPlayer;
+        }
+
+        // Last resort: UI hierarchy search (for older Unity versions where UnityPlayer extends View)
         return resolveUnityPlayerUiSearch(activity);
+    }
+
+    /**
+     * Attempts to resolve the UnityPlayer instance via the IUnityPlayerSupport interface.
+     * This is the preferred method for Unity 6000.0+
+     *
+     * @param activity The current activity
+     * @return The UnityPlayer instance if activity implements IUnityPlayerSupport, null otherwise
+     */
+    @Nullable
+    private static UnityPlayer resolveUnityPlayerViaInterface(Activity activity) {
+        try {
+            // Check if activity implements IUnityPlayerSupport interface (Unity 6000.0+)
+            Class<?> interfaceClass = Class.forName("com.unity3d.player.IUnityPlayerSupport");
+            if (interfaceClass.isInstance(activity)) {
+                Method getPlayerMethod = interfaceClass.getMethod("getUnityPlayerConnection");
+                Object result = getPlayerMethod.invoke(activity);
+                if (result instanceof UnityPlayer) {
+                    Log.d(PLUGIN, "Successfully resolved UnityPlayer via IUnityPlayerSupport interface");
+                    return (UnityPlayer) result;
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            // IUnityPlayerSupport doesn't exist in older Unity versions, this is expected
+            Log.d(PLUGIN, "IUnityPlayerSupport interface not found, trying legacy methods");
+        } catch (NoSuchMethodException e) {
+            Log.d(PLUGIN, "getUnityPlayerConnection method not found: %s", e.getMessage());
+        } catch (Exception e) {
+            Log.e(PLUGIN, "Unable to resolve UnityPlayer via IUnityPlayerSupport interface: %s", e);
+        }
+        return null;
     }
 
     /**
@@ -130,7 +178,7 @@ public class ManagedPlatform implements Platform {
                 Log.e(PLUGIN, "Unable to resolve Unity player: mUnityPlayer field is not of type UnityPlayer");
             }
         } catch (NoSuchFieldException e) {
-            Log.e(PLUGIN, "Unable to resolve Unity player: could not find mUnityPlayer field: %s", e);
+            Log.d(PLUGIN, "Unable to resolve Unity player: could not find mUnityPlayer field: %s", e);
         } catch (IllegalAccessException e) {
             Log.e(PLUGIN, "Unable to resolve Unity player: could not access mUnityPlayer field: %s", e);
         } catch (Exception e) {
@@ -141,6 +189,7 @@ public class ManagedPlatform implements Platform {
 
     /**
      * Initiates a UI hierarchy search for the UnityPlayer instance starting from the activity's root view.
+     * Note: This method only works for older Unity versions where UnityPlayer extends View.
      *
      * @param activity The current activity
      * @return The UnityPlayer instance if found in the UI hierarchy, null otherwise
@@ -151,6 +200,7 @@ public class ManagedPlatform implements Platform {
 
     /**
      * Recursively searches through the view hierarchy to find the UnityPlayer instance.
+     * Note: This method only works for older Unity versions where UnityPlayer extends View.
      *
      * @param root The root ViewGroup to start the search from
      * @return The UnityPlayer instance if found in the view hierarchy, null otherwise
