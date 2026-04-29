@@ -34,6 +34,7 @@ From the `Builder/` directory (after `pip install -r requirements.txt` if needed
 3. **Create symlinks** — confirm the dialog, then approve UAC. This creates `C:\Program Files\Unity-Export` and `C:\Program Files\Unity-Publish` pointing at the selected editor (required for the Rake/Invoke tooling).
 4. If Gradle reports missing Android licenses or SDK packages (e.g. `build-tools`), click **Setup Android SDK** — confirm the dialog, then complete the elevated command prompt. Packages to install via `sdkmanager` are listed in `build_gui_config.json` (`android_sdk_packages`; default is only `build-tools;35.0.0`).
 5. Set **Configuration** (Full/Free), **Build Type** (Release/Debug), and **Build Target** (Android / iOS / Both), then click **Build**.
+6. **Export Unity Package** — uses the current **Configuration** (Full or Free) and runs `invoke export-unity-package-full` or `export-unity-package-free` (clean, native Android/iOS build, Unity export). Requires the same Unity/JDK/SDK selection as **Build**, because Gradle runs during export.
 
 Handles:
 - Unity Editor selection
@@ -41,6 +42,7 @@ Handles:
 - JDK / Android SDK auto-detection
 - Android SDK setup (licenses + packages from `build_gui_config.json`)
 - Building Android / iOS targets
+- Exporting `.unitypackage` via Invoke (default output paths under `Builder/temp/packages/`)
 - Persists paths and build options in `Builder/build_gui_settings.json` (gitignored)
 
 # Builder

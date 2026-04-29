@@ -115,6 +115,11 @@ class LunarConsoleBuilderApp:
         )
         self.btn_build.pack(side="left", padx=5)
 
+        self.btn_export = tk.Button(
+            btn_frame, text="Build & Export Unity Package", command=self._on_export_package
+        )
+        self.btn_export.pack(side="left", padx=5)
+
         # Log
         tk.Label(self.root, text="Build Log:").grid(
             row=7, column=0, sticky="w", padx=padx, pady=(10, 0)
@@ -472,11 +477,63 @@ class LunarConsoleBuilderApp:
             messagebox.showerror("Error", f"Failed to start SDK setup:\n{e}")
 
     # ------------------------------------------------------------------
+    # Build & Export Unity package
+    # ------------------------------------------------------------------
+    def _on_export_package(self) -> None:
+        if getattr(self, "_job_running", False):
+            messagebox.showwarning("Busy", "A build or export is already running.")
+            return
+
+        self._job_running = True
+        self._set_toolbar_disabled(True)
+        self.log_text.delete("1.0", "end")
+
+        threading.Thread(target=self._export_thread, daemon=True).start()
+
+    def _export_thread(self) -> None:
+        try:
+            self._start_progress()
+            cfg = self.config_var.get()
+            if cfg not in ("Full", "Free"):
+                raise ValueError("Configuration must be Full or Free for export.")
+
+            unity_path, jdk_path, sdk_path = self._validate_paths()
+            env = os.environ.copy()
+            env["JAVA_HOME"] = str(jdk_path)
+            env["ANDROID_HOME"] = str(sdk_path)
+
+            task = "export-unity-package-full" if cfg == "Full" else "export-unity-package-free"
+
+            self._log(f"=== Build & Export Unity package ({cfg}) ===\n")
+            self._log(f"Unity: {unity_path}\n")
+            self._log(f"JAVA_HOME={jdk_path}\n")
+            self._log(f"ANDROID_HOME={sdk_path}\n")
+            self._log(
+                "Output: Builder/temp/packages/lunar-console-<cfg>-<version>.unitypackage\n\n"
+            )
+
+            self._run_command(["invoke", task], self.builder_dir, env)
+            self._log("\n=== Export completed successfully ===\n")
+        except Exception as e:
+            self._log(f"\n!!! ERROR: {e} !!!\n")
+        finally:
+            self._stop_progress()
+            self._job_running = False
+            self.root.after(0, self._restore_ui)
+
+    def _set_toolbar_disabled(self, disabled: bool) -> None:
+        state = "disabled" if disabled else "normal"
+        self.btn_build.config(state=state)
+        self.btn_export.config(state=state)
+        self.btn_symlinks.config(state=state)
+        self.btn_sdk_setup.config(state=state)
+
+    # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
     def _on_build(self) -> None:
-        if getattr(self, "_build_running", False):
-            messagebox.showwarning("Build", "A build is already running.")
+        if getattr(self, "_job_running", False):
+            messagebox.showwarning("Build", "A build or export is already running.")
             return
 
         target = self.target_var.get()
@@ -484,10 +541,8 @@ class LunarConsoleBuilderApp:
             messagebox.showerror("Error", "Please select a build target.")
             return
 
-        self._build_running = True
-        self.btn_build.config(state="disabled")
-        self.btn_symlinks.config(state="disabled")
-        self.btn_sdk_setup.config(state="disabled")
+        self._job_running = True
+        self._set_toolbar_disabled(True)
         self.log_text.delete("1.0", "end")
 
         t = threading.Thread(target=self._build_thread, args=(target,), daemon=True)
@@ -520,13 +575,11 @@ class LunarConsoleBuilderApp:
             self._log(f"\n!!! ERROR: {e} !!!\n")
         finally:
             self._stop_progress()
-            self._build_running = False
+            self._job_running = False
             self.root.after(0, self._restore_ui)
 
     def _restore_ui(self) -> None:
-        self.btn_build.config(state="normal")
-        self.btn_symlinks.config(state="normal")
-        self.btn_sdk_setup.config(state="normal")
+        self._set_toolbar_disabled(False)
 
     def _run_command(self, cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
         self._log(f">>> Running: {' '.join(cmd)}\n")
