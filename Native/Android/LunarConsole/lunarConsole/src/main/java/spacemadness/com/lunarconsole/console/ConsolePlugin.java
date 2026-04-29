@@ -87,7 +87,12 @@ public class ConsolePlugin implements NotificationCenter.OnNotificationListener,
         @Override
         public boolean onTouch(View v, MotionEvent event) {
             gestureDetector.onTouchEvent(event);
-            
+
+            // restore multi-touch tracking
+            return false; // do not block touch events!
+
+            /*
+            // ==========breaking multi-touch changes...==========
             int action = event.getActionMasked();
             int pointerCount = event.getPointerCount();
             
@@ -107,6 +112,8 @@ public class ConsolePlugin implements NotificationCenter.OnNotificationListener,
             }
             
             return false; // Allow Unity to handle single-touch events
+            // ==========...breaking multi-touch changes==========
+            */
         }
     };
     private Console console;
