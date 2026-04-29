@@ -58,7 +58,7 @@ namespace LunarConsoleEditorInternal
             // For more information see: http://answers.unity3d.com/questions/1016975/filenotfoundexception-when-using-xcode-api.html
             // Copy plugin files to the build directory so you can later move to another machine and build it there
             #if LUNAR_CONSOLE_EXPORT_IOS_FILES
-            var pluginPath = Path.Combine(buildPath, Constants.PluginName);
+            var pluginPath = Path.Combine(buildPath, "Libraries", Constants.PluginName);
             FileUtil.DeleteFileOrDirectory(pluginPath);
             FileUtil.CopyFileOrDirectory(EditorConstants.EditorPathIOS, pluginPath);
             // Clean up meta files
