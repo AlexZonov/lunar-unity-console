@@ -1,5 +1,12 @@
 # Lunar Console Changelog
 
+## v.1.9.3 - 05/07/2026
+
+**Fixes:**
+
+* removed ZWNBSP symbol from all scripts
+* **iOS:** fixed handling LUNAR_CONSOLE_EXPORT_IOS_FILES define, now allowed add defined before build
+
 ## v.1.9.2 - 04/30/2026
 
 **Changes:**
