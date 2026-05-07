@@ -53,23 +53,24 @@ namespace LunarConsoleEditorInternal
 
         static void OnPostprocessIOS(string buildPath)
         {
+            var pluginPath = EditorConstants.EditorPathIOS;
+
             // Workaround for:
             // FileNotFoundException: Could not load file or assembly 'UnityEditor.iOS.Extensions.Xcode, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null' or one of its dependencies.
             // For more information see: http://answers.unity3d.com/questions/1016975/filenotfoundexception-when-using-xcode-api.html
             // Copy plugin files to the build directory so you can later move to another machine and build it there
-            #if LUNAR_CONSOLE_EXPORT_IOS_FILES
-            var pluginPath = Path.Combine(buildPath, "Libraries", Constants.PluginName);
-            FileUtil.DeleteFileOrDirectory(pluginPath);
-            FileUtil.CopyFileOrDirectory(EditorConstants.EditorPathIOS, pluginPath);
-            // Clean up meta files
-            string[] files = Directory.GetFiles(pluginPath, "*.meta", System.IO.SearchOption.AllDirectories);
-            foreach (string file in files)
+            if (Utils.HasDefine("LUNAR_CONSOLE_EXPORT_IOS_FILES"))
             {
-                FileUtil.DeleteFileOrDirectory(file);
+                pluginPath = Path.Combine(buildPath, "Libraries", Constants.PluginName);
+                FileUtil.DeleteFileOrDirectory(pluginPath);
+                FileUtil.CopyFileOrDirectory(EditorConstants.EditorPathIOS, pluginPath);
+                // Clean up meta files
+                string[] files = Directory.GetFiles(pluginPath, "*.meta", System.IO.SearchOption.AllDirectories);
+                foreach (string file in files)
+                {
+                    FileUtil.DeleteFileOrDirectory(file);
+                }
             }
-            #else  // LUNAR_CONSOLE_EXPORT_IOS_FILES
-            var pluginPath = EditorConstants.EditorPathIOS;
-            #endif // LUNAR_CONSOLE_EXPORT_IOS_FILES
 
             var projectMod = new XcodeProjMod(buildPath, pluginPath);
             projectMod.UpdateProject();

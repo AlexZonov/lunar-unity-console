@@ -26,6 +26,7 @@ using UnityEditor;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using UnityEditor.Build;
 
 namespace LunarConsoleEditorInternal
 {
@@ -150,6 +151,18 @@ namespace LunarConsoleEditorInternal
             }
         }
         
+        #endregion
+
+        #region Other
+
+        public static bool HasDefine(string define)
+        {
+            var targetGroup = BuildPipeline.GetBuildTargetGroup(EditorUserBuildSettings.activeBuildTarget);
+            var target = NamedBuildTarget.FromBuildTargetGroup(targetGroup);
+            var defines = PlayerSettings.GetScriptingDefineSymbols(target);
+            return defines.Contains(define);
+        }
+
         #endregion
     }
 }
