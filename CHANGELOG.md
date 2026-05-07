@@ -18,7 +18,6 @@
 * Builder: fixed file checks during the build pipeline.
 * **iOS:** added **UIWindowScene** support ([#235](https://github.com/SpaceMadness/lunar-unity-console/issues/235)).
 * **iOS / Xcode:** fixed export to xcode project(used Library subfolder and valid plugin name `LunarConsole`(same as `Constants.PluginName`)). 
-* **iOS / Xcode:** fixed export path when writing the Xcode project plugin.
 * **Android:** fixed multi-touch blocking
 
 ## v.1.9.1 - 10/05/2025
