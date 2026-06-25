@@ -1,12 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="spacemadness.com.lunarconsole">
+    package="spacemadness.com.lunarconsole">
+
     <application>
         <activity
             android:icon="@drawable/lunar_console_icon_button_settings"
             android:label="@string/lunar_console_settings_activity_label"
             android:theme="@style/lunar_console_theme"
-            android:name=".settings.PluginSettingsActivity"
-        />
+            android:name=".settings.PluginSettingsActivity" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.lunarconsole.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/lunar_console_file_paths" />
+        </provider>
     </application>
 </manifest>

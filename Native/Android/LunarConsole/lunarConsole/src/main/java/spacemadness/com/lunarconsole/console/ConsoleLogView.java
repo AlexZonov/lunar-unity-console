@@ -25,6 +25,7 @@ package spacemadness.com.lunarconsole.console;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -62,6 +63,11 @@ import spacemadness.com.lunarconsole.ui.ToggleImageButton;
 import spacemadness.com.lunarconsole.utils.StackTrace;
 import spacemadness.com.lunarconsole.utils.StringUtils;
 import spacemadness.com.lunarconsole.utils.UIUtils;
+
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.FileOutputStream;
 
 import static android.widget.LinearLayout.LayoutParams.MATCH_PARENT;
 import static spacemadness.com.lunarconsole.console.ConsoleLogType.ASSERT;
@@ -265,26 +271,83 @@ public class ConsoleLogView extends AbstractConsoleView implements
         try {
             String packageName = getContext().getPackageName();
             String subject = StringUtils.format("'%s' console log", packageName);
-
             String outputText = console.getText();
 
-            Intent intent = new Intent(Intent.ACTION_SENDTO);
-            intent.setData(Uri.parse("mailto:")); // only email apps should handle this
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("message/rfc822");
             intent.putExtra(Intent.EXTRA_SUBJECT, subject);
             intent.putExtra(Intent.EXTRA_TEXT, outputText);
             if (emails != null && emails.length > 0) {
                 intent.putExtra(Intent.EXTRA_EMAIL, emails);
             }
 
-            if (intent.resolveActivity(getContext().getPackageManager()) != null) {
-                getContext().startActivity(intent);
+            try {
+                getContext().startActivity(Intent.createChooser(intent, "Send email..."));
                 return true;
+            } catch (ActivityNotFoundException ex) {
+                UIUtils.showToast(getContext(), "No email clients installed");
+                return false;
             }
-
-            UIUtils.showToast(getContext(), "Can't send email");
-            return false;
         } catch (Exception e) {
             Log.e(e, "Error while trying to send console output by email");
+        }
+
+        return false;
+    }
+
+    private boolean sendConsoleOutputAsFileByEmail() {
+        try {
+            Context context = getContext();
+
+            String packageName = context.getPackageName();
+            String subject = StringUtils.format("'%s' console log", packageName);
+            String outputText = console.getText();
+
+            File logsDir = new File(context.getCacheDir(), "lunar_console_logs");
+            if (!logsDir.exists() && !logsDir.mkdirs()) {
+                Log.e(CONSOLE, "Unable to create lunar console logs directory");
+                return false;
+            }
+
+            File logFile = new File(logsDir, "lunar_console_log.txt");
+
+            FileOutputStream outputStream = null;
+            try {
+                outputStream = new FileOutputStream(logFile);
+                outputStream.write(outputText.getBytes("UTF-8"));
+                outputStream.flush();
+            } finally {
+                if (outputStream != null) {
+                    outputStream.close();
+                }
+            }
+
+            Uri fileUri = FileProvider.getUriForFile(
+                    context,
+                    packageName + ".lunarconsole.fileprovider",
+                    logFile
+            );
+
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_SUBJECT, subject);
+            intent.putExtra(Intent.EXTRA_TEXT, "Lunar Console log is attached.");
+            intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            if (emails != null && emails.length > 0) {
+                intent.putExtra(Intent.EXTRA_EMAIL, emails);
+            }
+
+            try {
+                context.startActivity(Intent.createChooser(intent, "Send email..."));
+                return true;
+            } catch (ActivityNotFoundException ex) {
+                UIUtils.showToast(context, "No email clients installed");
+                return false;
+            }
+        } catch (Exception e) {
+            Log.e(e, "Error while trying to send console output as email attachment");
         }
 
         return false;
@@ -387,7 +450,7 @@ public class ConsoleLogView extends AbstractConsoleView implements
         setOnClickListener(R.id.lunar_console_button_email, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                sendConsoleOutputByEmail();
+                sendConsoleOutputAsFileByEmail();
             }
         });
     }
