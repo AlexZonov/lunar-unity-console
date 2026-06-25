@@ -45,7 +45,12 @@
 
 - (BOOL)shouldAutorotate
 {
-    return NO;
+    return YES;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
+    return UIInterfaceOrientationMaskLandscape;
 }
 
 #pragma mark -
