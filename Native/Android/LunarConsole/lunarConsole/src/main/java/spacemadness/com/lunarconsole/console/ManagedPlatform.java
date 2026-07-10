@@ -24,9 +24,10 @@ package spacemadness.com.lunarconsole.console;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
+import android.widget.FrameLayout;
 
 import com.unity3d.player.UnityPlayer;
 
@@ -45,23 +46,21 @@ import androidx.annotation.Nullable;
 public class ManagedPlatform implements Platform {
     private final UnityScriptMessenger scriptMessenger;
     private final WeakReference<Activity> activityRef;
-    private final boolean gameActivityEntryPoint;
 
     @Nullable
-    private WeakReference<View> gestureViewRef;
+    private GestureCaptureOverlay gestureOverlay;
 
     public ManagedPlatform(Activity activity, String target, String method) {
         this.activityRef = new WeakReference<>(activity);
-        this.gameActivityEntryPoint = isGameActivityEntryPoint(activity);
         scriptMessenger = new UnityScriptMessenger(target, method);
-
-        if (gameActivityEntryPoint) {
-            Log.d(PLUGIN, "Detected GameActivity entry point");
-        }
     }
 
     @Override
     public View getTouchRecipientView() {
+        if (gestureOverlay != null) {
+            return gestureOverlay;
+        }
+
         Activity currentActivity = activityRef.get();
         if (currentActivity == null) {
             Log.e(PLUGIN, "UnityPlayer.currentActivity is null");
@@ -79,16 +78,6 @@ public class ManagedPlatform implements Platform {
         Object unityPlayerObject = unityPlayer;
         if (unityPlayerObject instanceof View) {
             return (View) unityPlayerObject;
-        }
-
-        // GameActivity: prefer SurfaceView — that's where input is associated.
-        if (gameActivityEntryPoint) {
-            View surfaceView = resolveSurfaceView(unityPlayer);
-            if (surfaceView != null) {
-                Log.d(PLUGIN, "Successfully resolved SurfaceView for GameActivity");
-                return surfaceView;
-            }
-            Log.w(PLUGIN, "GameActivity SurfaceView not found, falling back to FrameLayout");
         }
 
         // For Unity 6000.0+ and newer versions, get FrameLayout via reflection
@@ -113,52 +102,49 @@ public class ManagedPlatform implements Platform {
 
     @Override
     public void installGestureTouchListener(View.OnTouchListener listener) {
-        View view = getTouchRecipientView();
-        if (view == null) {
-            Log.w(PLUGIN, "Can't install gesture touch listener: touch view is null");
+        Activity activity = activityRef.get();
+        if (activity == null) {
+            Log.w(PLUGIN, "Can't install gesture touch listener: activity is null");
             return;
         }
 
-        gestureViewRef = new WeakReference<>(view);
+        FrameLayout content = activity.getWindow().findViewById(android.R.id.content);
+        if (content == null) {
+            Log.w(PLUGIN, "Can't install gesture touch listener: content view is null");
+            return;
+        }
 
-        if (gameActivityEntryPoint) {
-            // GameActivity uses a plain FrameLayout/SurfaceView that does not claim the touch
-            // target (unlike Activity's custom FrameLayout which injects events and returns true).
-            // Claim the target so we receive the full gesture sequence, and forward events into
-            // GameActivity.onTouchEvent → processMotionEvent so Unity still gets input.
-            final WeakReference<Activity> activityWeakRef = activityRef;
-            view.setOnTouchListener(new View.OnTouchListener() {
-                @Override
-                public boolean onTouch(View v, MotionEvent event) {
-                    listener.onTouch(v, event);
+        if (gestureOverlay == null) {
+            gestureOverlay = new GestureCaptureOverlay(activity);
+        }
+        gestureOverlay.setGestureListener(listener);
 
-                    Activity activity = activityWeakRef.get();
-                    if (activity != null) {
-                        activity.onTouchEvent(event);
-                    }
-                    return true;
-                }
-            });
-            Log.d(PLUGIN, "Installed GameActivity gesture touch listener with input forwarding");
-        } else {
-            view.setOnTouchListener(listener);
+        if (gestureOverlay.getParent() == null) {
+            // Insert just above Unity's root (usually child 0), so later Lunar overlays
+            // (log/console/warning) added via addView() stay on top and keep receiving touches.
+            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+            );
+            int insertIndex = Math.min(1, content.getChildCount());
+            content.addView(gestureOverlay, insertIndex, params);
+            Log.d(PLUGIN, "Installed gesture capture overlay at index %d", insertIndex);
         }
     }
 
     @Override
     public void uninstallGestureTouchListener() {
-        View view = gestureViewRef != null ? gestureViewRef.get() : null;
-        if (view == null) {
-            view = getTouchRecipientView();
+        if (gestureOverlay == null) {
+            return;
         }
 
-        if (view != null) {
-            view.setOnTouchListener(null);
-        } else {
-            Log.w(PLUGIN, "Can't uninstall gesture touch listener: touch view is null");
-        }
+        gestureOverlay.setGestureListener(null);
 
-        gestureViewRef = null;
+        ViewParent parent = gestureOverlay.getParent();
+        if (parent instanceof ViewGroup) {
+            ((ViewGroup) parent).removeView(gestureOverlay);
+            Log.d(PLUGIN, "Removed gesture capture overlay");
+        }
     }
 
     @Override
@@ -168,39 +154,6 @@ public class ManagedPlatform implements Platform {
         } catch (Exception e) {
             Log.e(PLUGIN, "Error while sending Unity script message: name=%s param=%s", name, data);
         }
-    }
-
-    private static boolean isGameActivityEntryPoint(Activity activity) {
-        UnityPlayer unityPlayer = resolveUnityPlayer(activity);
-        if (unityPlayer == null) {
-            return false;
-        }
-
-        // Activity → UnityPlayerForActivityOrService, GameActivity → UnityPlayerForGameActivity.
-        // Check the player type so custom activities still resolve correctly without hardcoding
-        // GameActivity class names from Unity/Google packages.
-        try {
-            Class<?> gamePlayerClass = Class.forName("com.unity3d.player.UnityPlayerForGameActivity");
-            return gamePlayerClass.isInstance(unityPlayer);
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
-
-    @Nullable
-    private static View resolveSurfaceView(UnityPlayer unityPlayer) {
-        try {
-            Method getSurfaceViewMethod = UnityPlayer.class.getMethod("getSurfaceView");
-            Object result = getSurfaceViewMethod.invoke(unityPlayer);
-            if (result instanceof View) {
-                return (View) result;
-            }
-        } catch (NoSuchMethodException e) {
-            Log.d(PLUGIN, "UnityPlayer does not have getSurfaceView method");
-        } catch (Exception e) {
-            Log.e(PLUGIN, "Error while invoking getSurfaceView method: %s", e);
-        }
-        return null;
     }
 
     /**
