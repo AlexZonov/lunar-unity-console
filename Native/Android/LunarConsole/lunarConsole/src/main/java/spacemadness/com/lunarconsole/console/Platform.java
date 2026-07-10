@@ -33,6 +33,18 @@ interface Platform {
     View getTouchRecipientView();
 
     /**
+     * Installs a gesture touch listener on the platform-appropriate view.
+     * Implementations may wrap the listener (e.g. GameActivity needs to claim the
+     * touch target and forward events into Unity's input path).
+     */
+    void installGestureTouchListener(View.OnTouchListener listener);
+
+    /**
+     * Removes the previously installed gesture touch listener.
+     */
+    void uninstallGestureTouchListener();
+
+    /**
      * Send message to Unity runtime
      */
     void sendUnityScriptMessage(String name, Map<String, Object> data);

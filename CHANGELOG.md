@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.4-dev - 07/11/2026
+
+**Fixes:**
+
+* **Android:** added support for GameActivity(fixed touch detection)
+
 ## v.1.9.3 - 05/07/2026
 
 **Fixes:**

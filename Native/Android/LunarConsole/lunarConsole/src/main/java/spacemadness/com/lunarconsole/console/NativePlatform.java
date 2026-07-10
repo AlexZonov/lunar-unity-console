@@ -54,6 +54,26 @@ public class NativePlatform implements Platform {
     }
 
     @Override
+    public void installGestureTouchListener(View.OnTouchListener listener) {
+        View view = getTouchRecipientView();
+        if (view == null) {
+            Log.w(PLUGIN, "Can't install gesture touch listener: touch view is null");
+            return;
+        }
+        view.setOnTouchListener(listener);
+    }
+
+    @Override
+    public void uninstallGestureTouchListener() {
+        View view = getTouchRecipientView();
+        if (view != null) {
+            view.setOnTouchListener(null);
+        } else {
+            Log.w(PLUGIN, "Can't uninstall gesture touch listener: touch view is null");
+        }
+    }
+
+    @Override
     public void sendUnityScriptMessage(String name, Map<String, Object> data) {
         Log.d(PLUGIN, "Send script message: %s(%s)", name, data);
         TestHelper.testEvent(TEST_EVENT_NATIVE_CALLBACK, "name", name, "arguments", data);

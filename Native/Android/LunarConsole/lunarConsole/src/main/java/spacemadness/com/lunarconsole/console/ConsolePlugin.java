@@ -562,24 +562,12 @@ public class ConsolePlugin implements NotificationCenter.OnNotificationListener,
 
     private void enableGestureRecognition() {
         Log.d(GESTURES, "Enable gesture recognition");
-
-        View view = platform.getTouchRecipientView();
-        if (view == null) {
-            Log.w("Can't enable gesture recognition: touch view is null");
-            return;
-        }
-        view.setOnTouchListener(gestureDetectorTouchListener);
+        platform.installGestureTouchListener(gestureDetectorTouchListener);
     }
 
     private void disableGestureRecognition() {
         Log.d(GESTURES, "Disable gesture recognition");
-
-        View view = platform.getTouchRecipientView();
-        if (view != null) {
-            view.setOnTouchListener(null);
-        } else {
-            Log.w("Can't disable gesture recognition: touch view is null");
-        }
+        platform.uninstallGestureTouchListener();
     }
 
     //endregion

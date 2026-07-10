@@ -24,9 +24,9 @@ package spacemadness.com.lunarconsole.console;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
 import com.unity3d.player.UnityPlayer;
 
@@ -44,16 +44,25 @@ import androidx.annotation.Nullable;
 
 public class ManagedPlatform implements Platform {
     private final UnityScriptMessenger scriptMessenger;
-    private final WeakReference<Activity> activity;
+    private final WeakReference<Activity> activityRef;
+    private final boolean gameActivityEntryPoint;
+
+    @Nullable
+    private WeakReference<View> gestureViewRef;
 
     public ManagedPlatform(Activity activity, String target, String method) {
-        this.activity = new WeakReference<>(activity);
+        this.activityRef = new WeakReference<>(activity);
+        this.gameActivityEntryPoint = isGameActivityEntryPoint(activity);
         scriptMessenger = new UnityScriptMessenger(target, method);
+
+        if (gameActivityEntryPoint) {
+            Log.d(PLUGIN, "Detected GameActivity entry point");
+        }
     }
 
     @Override
     public View getTouchRecipientView() {
-        Activity currentActivity = activity.get();
+        Activity currentActivity = activityRef.get();
         if (currentActivity == null) {
             Log.e(PLUGIN, "UnityPlayer.currentActivity is null");
             return null;
@@ -70,6 +79,16 @@ public class ManagedPlatform implements Platform {
         Object unityPlayerObject = unityPlayer;
         if (unityPlayerObject instanceof View) {
             return (View) unityPlayerObject;
+        }
+
+        // GameActivity: prefer SurfaceView — that's where input is associated.
+        if (gameActivityEntryPoint) {
+            View surfaceView = resolveSurfaceView(unityPlayer);
+            if (surfaceView != null) {
+                Log.d(PLUGIN, "Successfully resolved SurfaceView for GameActivity");
+                return surfaceView;
+            }
+            Log.w(PLUGIN, "GameActivity SurfaceView not found, falling back to FrameLayout");
         }
 
         // For Unity 6000.0+ and newer versions, get FrameLayout via reflection
@@ -93,6 +112,56 @@ public class ManagedPlatform implements Platform {
     }
 
     @Override
+    public void installGestureTouchListener(View.OnTouchListener listener) {
+        View view = getTouchRecipientView();
+        if (view == null) {
+            Log.w(PLUGIN, "Can't install gesture touch listener: touch view is null");
+            return;
+        }
+
+        gestureViewRef = new WeakReference<>(view);
+
+        if (gameActivityEntryPoint) {
+            // GameActivity uses a plain FrameLayout/SurfaceView that does not claim the touch
+            // target (unlike Activity's custom FrameLayout which injects events and returns true).
+            // Claim the target so we receive the full gesture sequence, and forward events into
+            // GameActivity.onTouchEvent → processMotionEvent so Unity still gets input.
+            final WeakReference<Activity> activityWeakRef = activityRef;
+            view.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    listener.onTouch(v, event);
+
+                    Activity activity = activityWeakRef.get();
+                    if (activity != null) {
+                        activity.onTouchEvent(event);
+                    }
+                    return true;
+                }
+            });
+            Log.d(PLUGIN, "Installed GameActivity gesture touch listener with input forwarding");
+        } else {
+            view.setOnTouchListener(listener);
+        }
+    }
+
+    @Override
+    public void uninstallGestureTouchListener() {
+        View view = gestureViewRef != null ? gestureViewRef.get() : null;
+        if (view == null) {
+            view = getTouchRecipientView();
+        }
+
+        if (view != null) {
+            view.setOnTouchListener(null);
+        } else {
+            Log.w(PLUGIN, "Can't uninstall gesture touch listener: touch view is null");
+        }
+
+        gestureViewRef = null;
+    }
+
+    @Override
     public void sendUnityScriptMessage(String name, Map<String, Object> data) {
         try {
             scriptMessenger.sendMessage(name, data);
@@ -101,6 +170,38 @@ public class ManagedPlatform implements Platform {
         }
     }
 
+    private static boolean isGameActivityEntryPoint(Activity activity) {
+        UnityPlayer unityPlayer = resolveUnityPlayer(activity);
+        if (unityPlayer == null) {
+            return false;
+        }
+
+        // Activity → UnityPlayerForActivityOrService, GameActivity → UnityPlayerForGameActivity.
+        // Check the player type so custom activities still resolve correctly without hardcoding
+        // GameActivity class names from Unity/Google packages.
+        try {
+            Class<?> gamePlayerClass = Class.forName("com.unity3d.player.UnityPlayerForGameActivity");
+            return gamePlayerClass.isInstance(unityPlayer);
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    @Nullable
+    private static View resolveSurfaceView(UnityPlayer unityPlayer) {
+        try {
+            Method getSurfaceViewMethod = UnityPlayer.class.getMethod("getSurfaceView");
+            Object result = getSurfaceViewMethod.invoke(unityPlayer);
+            if (result instanceof View) {
+                return (View) result;
+            }
+        } catch (NoSuchMethodException e) {
+            Log.d(PLUGIN, "UnityPlayer does not have getSurfaceView method");
+        } catch (Exception e) {
+            Log.e(PLUGIN, "Error while invoking getSurfaceView method: %s", e);
+        }
+        return null;
+    }
 
     /**
      * Attempts to resolve the UnityPlayer instance using multiple strategies.
