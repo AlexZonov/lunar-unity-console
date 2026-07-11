@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.5 - 07/12/2026
+
+**Fixes:**
+
+* **iOS:** fixed iOS exception warning banner layout on orientation change
+
 ## v.1.9.4 - 07/11/2026
 
 **Fixes:**

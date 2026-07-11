@@ -24,6 +24,8 @@
 
 #import "Lunar.h"
 
+static const CGFloat kWarningBannerHeight = 45.0f;
+
 @interface LUExceptionWarningController () {
     LULogMessage *_message;
 }
@@ -43,10 +45,37 @@
     return self;
 }
 
-
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+    UIView *bannerView = self.view;
+    [LUPassTouchView class];
+    LUPassTouchView *containerView = [[LUPassTouchView alloc] initWithFrame:bannerView.bounds];
+    containerView.backgroundColor = [UIColor clearColor];
+
+    bannerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.view = containerView;
+    [containerView addSubview:bannerView];
+
+    NSArray<NSLayoutConstraint *> *constraints;
+    if (@available(iOS 11.0, *)) {
+        UILayoutGuide *safeArea = containerView.safeAreaLayoutGuide;
+        constraints = @[
+            [bannerView.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor],
+            [bannerView.trailingAnchor constraintEqualToAnchor:safeArea.trailingAnchor],
+            [bannerView.bottomAnchor constraintEqualToAnchor:safeArea.bottomAnchor],
+            [bannerView.heightAnchor constraintEqualToConstant:kWarningBannerHeight]
+        ];
+    } else {
+        constraints = @[
+            [bannerView.leadingAnchor constraintEqualToAnchor:containerView.leadingAnchor],
+            [bannerView.trailingAnchor constraintEqualToAnchor:containerView.trailingAnchor],
+            [bannerView.bottomAnchor constraintEqualToAnchor:containerView.bottomAnchor],
+            [bannerView.heightAnchor constraintEqualToConstant:kWarningBannerHeight]
+        ];
+    }
+    [NSLayoutConstraint activateConstraints:constraints];
 
     if (_message.tags.count > 0)
     {

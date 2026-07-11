@@ -33,7 +33,6 @@ NSString *const LUConsoleCheckFullVersionNotification = @"LUConsoleCheckFullVers
 NSString *const LUConsoleCheckFullVersionNotificationSource = @"source";
 
 static const NSTimeInterval kWindowAnimationDuration = 0.4f;
-static const CGFloat kWarningHeight = 45.0f;
 
 static NSString *const kScriptMessageConsoleOpen = @"console_open";
 static NSString *const kScriptMessageConsoleClose = @"console_close";
@@ -260,16 +259,15 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
 - (BOOL)showWarningWithMessage:(LULogMessage *)message
 {
     if (_warningWindow == nil) {
-        CGRect safeRect = [LUUIHelper safeAreaRect];
-        CGRect windowFrame = CGRectMake(CGRectGetMinX(safeRect), CGRectGetMinY(safeRect) + CGRectGetHeight(safeRect) - kWarningHeight, CGRectGetWidth(safeRect), kWarningHeight);
-        
         UIWindowScene *windowScene = LUGetWindowScene();
+        CGRect windowFrame = windowScene ? windowScene.coordinateSpace.bounds : LUGetScreenBounds();
+
         _warningWindow = windowScene ? [[LUWindow alloc] initWithWindowScene:windowScene] : [[LUWindow alloc] initWithFrame:windowFrame];
-        _warningWindow.clipsToBounds = YES;
+        _warningWindow.opaque = YES;
+        _warningWindow.backgroundColor = [UIColor clearColor];
         _warningWindow.frame = windowFrame;
 
         LUExceptionWarningController *controller = [[LUExceptionWarningController alloc] initWithMessage:message];
-        controller.view.frame = _warningWindow.bounds;
         controller.delegate = self;
         _warningWindow.rootViewController = controller;
 
