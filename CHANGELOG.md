@@ -1,10 +1,11 @@
 # Lunar Console Changelog
 
-## v.1.9.4-dev - 07/11/2026
+## v.1.9.4 - 07/11/2026
 
 **Fixes:**
 
 * **Android:** added support for GameActivity(fixed touch detection)
+* **iOS:** fixed orientation bug([#215](https://github.com/SpaceMadness/lunar-unity-console/issues/215))
 
 ## v.1.9.3 - 05/07/2026
 
