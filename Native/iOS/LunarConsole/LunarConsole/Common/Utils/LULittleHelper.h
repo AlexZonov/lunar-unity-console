@@ -28,5 +28,6 @@ CGRect LUGetScreenBounds(void);
 UIWindowScene* LUGetWindowScene(void) NS_AVAILABLE_IOS(13_0);
 
 UIInterfaceOrientation LUGetInterfaceOrientation(void);
+UIInterfaceOrientationMask LUGetSupportedInterfaceOrientations(void);
 BOOL LUIsPortraitInterfaceOrientation(void);
 BOOL LUIsLandscapeInterfaceOrientation(void);

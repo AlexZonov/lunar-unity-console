@@ -24,6 +24,23 @@
 
 #import "Lunar.h"
 
+static UIInterfaceOrientationMask LUInterfaceOrientationMaskFromOrientation(UIInterfaceOrientation orientation)
+{
+    switch (orientation)
+    {
+        case UIInterfaceOrientationPortrait:
+            return UIInterfaceOrientationMaskPortrait;
+        case UIInterfaceOrientationPortraitUpsideDown:
+            return UIInterfaceOrientationMaskPortraitUpsideDown;
+        case UIInterfaceOrientationLandscapeLeft:
+            return UIInterfaceOrientationMaskLandscapeLeft;
+        case UIInterfaceOrientationLandscapeRight:
+            return UIInterfaceOrientationMaskLandscapeRight;
+        default:
+            return UIInterfaceOrientationMaskAll;
+    }
+}
+
 void LUDisplayAlertView(NSString *title, NSString *message)
 {
 #pragma clang diagnostic push
@@ -54,7 +71,30 @@ CGRect LUGetScreenBounds() {
 
 UIInterfaceOrientation LUGetInterfaceOrientation()
 {
+    UIWindowScene *windowScene = LUGetWindowScene();
+    if (windowScene != nil) {
+        return windowScene.interfaceOrientation;
+    }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     return [UIApplication sharedApplication].statusBarOrientation;
+#pragma clang diagnostic pop
+}
+
+UIInterfaceOrientationMask LUGetSupportedInterfaceOrientations(void)
+{
+    // Console lives in a separate UIWindow on Unity's UIWindowScene. On iOS 16+
+    // that window's root VC orientations affect the whole scene, so mirror Unity
+    // instead of hardcoding a mask (e.g. landscape-only would break portrait games).
+    UIWindow *unityWindow = UnityGetMainWindow();
+    UIViewController *unityRoot = unityWindow.rootViewController;
+    // Avoid recursion if the console window is currently key (standalone app stub).
+    if (unityRoot != nil && ![unityRoot isKindOfClass:[LUViewController class]]) {
+        return [unityRoot supportedInterfaceOrientations];
+    }
+
+    return LUInterfaceOrientationMaskFromOrientation(LUGetInterfaceOrientation());
 }
 
 BOOL LUIsPortraitInterfaceOrientation(void)

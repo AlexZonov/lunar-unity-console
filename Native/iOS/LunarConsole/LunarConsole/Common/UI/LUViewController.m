@@ -45,7 +45,14 @@
 
 - (BOOL)shouldAutorotate
 {
-    return NO;
+    // Must be YES so UIKit honors supportedInterfaceOrientations on iOS 16+
+    // when the console window shares Unity's UIWindowScene.
+    return YES;
+}
+
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+{
+    return LUGetSupportedInterfaceOrientations();
 }
 
 #pragma mark -
