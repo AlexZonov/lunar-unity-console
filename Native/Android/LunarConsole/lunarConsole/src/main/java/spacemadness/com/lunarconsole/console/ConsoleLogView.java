@@ -26,9 +26,12 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Build;
@@ -49,7 +52,15 @@ import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.FileOutputStream;
 import java.lang.ref.WeakReference;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 import spacemadness.com.lunarconsole.R;
 import spacemadness.com.lunarconsole.concurrent.DispatchQueue;
@@ -76,9 +87,13 @@ import static spacemadness.com.lunarconsole.debug.Tags.CONSOLE;
 public class ConsoleLogView extends AbstractConsoleView implements
         LunarConsoleListener,
         LogTypeButton.OnStateChangeListener {
+    private static final String FILE_PROVIDER_AUTHORITY_SUFFIX = ".lunarconsole.fileprovider";
+    private static final String LOG_CACHE_DIR_NAME = "lunar_console_logs";
+
     private final WeakReference<Activity> activityRef;
 
     private final DispatchQueue dispatchQueue;
+    private final DispatchQueue ioQueue;
     private final Console console;
     private final ListView listView;
     private final ConsoleLogAdapter consoleLogAdapter;
@@ -114,6 +129,7 @@ public class ConsoleLogView extends AbstractConsoleView implements
         this.activityRef = new WeakReference<>(activity);
         this.console = console;
         this.dispatchQueue = dispatchQueue;
+        this.ioQueue = DispatchQueue.createSerialQueue("lunar-console-io");
         this.console.setConsoleListener(this);
 
         scrollLocked = true; // scroll is locked by default
@@ -224,6 +240,8 @@ public class ConsoleLogView extends AbstractConsoleView implements
     public void destroy() {
         Log.d(CONSOLE, "Destroy console");
 
+        ioQueue.stop();
+
         if (console.getConsoleListener() == this) {
             console.setConsoleListener(null);
         }
@@ -262,32 +280,162 @@ public class ConsoleLogView extends AbstractConsoleView implements
         return copyToClipboard(console.getText());
     }
 
-    private boolean sendConsoleOutputByEmail() {
-        try {
-            String packageName = getContext().getPackageName();
-            String subject = StringUtils.format("'%s' console log", packageName);
-            String outputText = console.getText();
+    // Android binder transaction limit (~1 MB) makes large EXTRA_TEXT unreliable,
+    // so the log is shared as a FileProvider attachment instead of an email body.
+    private void sendConsoleOutputByEmail() {
+        final Context context = getContext();
+        final String packageName = context.getPackageName();
+        final String subject = StringUtils.format("'%s' console log", packageName);
+        final String outputText = console.getText();
+        final String[] recipients = emails;
 
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("message/rfc822");
-            intent.putExtra(Intent.EXTRA_SUBJECT, subject);
-            intent.putExtra(Intent.EXTRA_TEXT, outputText);
-            if (emails != null && emails.length > 0) {
-                intent.putExtra(Intent.EXTRA_EMAIL, emails);
+        ioQueue.dispatch(new DispatchTask("share console log") {
+            @Override
+            protected void execute() {
+                try {
+                    final Uri fileUri = writeConsoleLogFile(context, outputText);
+                    dispatchQueue.dispatch(new DispatchTask("share console log ui") {
+                        @Override
+                        protected void execute() {
+                            startShareConsoleLog(context, subject, fileUri, recipients);
+                        }
+                    });
+                } catch (Exception e) {
+                    Log.e(e, "Error while trying to send console output by email");
+                    dispatchQueue.dispatch(new DispatchTask("share console log error") {
+                        @Override
+                        protected void execute() {
+                            UIUtils.showToast(context, "Can't share log");
+                        }
+                    });
+                }
             }
+        });
+    }
 
-            try {
-                getContext().startActivity(Intent.createChooser(intent, "Send email..."));
-                return true;
-            } catch (ActivityNotFoundException ex) {
-                UIUtils.showToast(getContext(), "No email clients installed");
-                return false;
-            }
-        } catch (Exception e) {
-            Log.e(e, "Error while trying to send console output by email");
+    private static Uri writeConsoleLogFile(Context context, String outputText) throws Exception {
+        File logsDir = new File(context.getCacheDir(), LOG_CACHE_DIR_NAME);
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            throw new Exception("Unable to create lunar console logs directory");
         }
 
-        return false;
+        clearCachedLogFiles(logsDir);
+
+        String logFileName = createLogFileName(context);
+        File logFile = new File(logsDir, logFileName);
+        FileOutputStream outputStream = null;
+        try {
+            outputStream = new FileOutputStream(logFile);
+            outputStream.write(outputText.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+        } finally {
+            if (outputStream != null) {
+                outputStream.close();
+            }
+        }
+
+        return FileProvider.getUriForFile(
+                context,
+                context.getPackageName() + FILE_PROVIDER_AUTHORITY_SUFFIX,
+                logFile
+        );
+    }
+
+    private static void startShareConsoleLog(Context context, String subject, Uri fileUri, String[] recipients) {
+        String displayName = fileUri.getLastPathSegment();
+        if (StringUtils.IsNullOrEmpty(displayName)) {
+            displayName = "console.log";
+        }
+
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_SUBJECT, subject);
+        intent.putExtra(Intent.EXTRA_STREAM, fileUri);
+        intent.setClipData(ClipData.newUri(context.getContentResolver(), displayName, fileUri));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        if (recipients != null && recipients.length > 0) {
+            intent.putExtra(Intent.EXTRA_EMAIL, recipients);
+        }
+
+        try {
+            context.startActivity(Intent.createChooser(intent, "Share..."));
+        } catch (ActivityNotFoundException ex) {
+            UIUtils.showToast(context, "Can't share log");
+        }
+    }
+
+    private static String createLogFileName(Context context) {
+        String appName = sanitizeFileNameComponent(context.getPackageName());
+        String version = sanitizeFileNameComponent(getApplicationVersionName(context));
+        String buildNumber = Long.toString(getApplicationVersionCode(context));
+        String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(new Date());
+        return StringUtils.format("%s_%s_%s_%s.log", appName, version, buildNumber, timestamp);
+    }
+
+    private static String getApplicationVersionName(Context context) {
+        try {
+            PackageInfo packageInfo = getPackageInfo(context);
+            if (packageInfo != null && packageInfo.versionName != null && packageInfo.versionName.length() > 0) {
+                return packageInfo.versionName;
+            }
+        } catch (Exception ignored) {
+        }
+        return "unknown";
+    }
+
+    private static long getApplicationVersionCode(Context context) {
+        try {
+            PackageInfo packageInfo = getPackageInfo(context);
+            if (packageInfo != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    return packageInfo.getLongVersionCode();
+                }
+                return packageInfo.versionCode;
+            }
+        } catch (Exception ignored) {
+        }
+        return 0L;
+    }
+
+    private static PackageInfo getPackageInfo(Context context) throws PackageManager.NameNotFoundException {
+        return context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+    }
+
+    private static String sanitizeFileNameComponent(String value) {
+        if (value == null) {
+            return "unknown";
+        }
+
+        // Keep only filesystem-safe characters; replace everything else with underscore.
+        String sanitized = value.trim().replaceAll("[^a-zA-Z0-9._-]+", "_");
+        // Collapse repeated underscores from consecutive replacements.
+        sanitized = sanitized.replaceAll("_+", "_");
+        // Strip leading/trailing separators so the component does not start or end with . _ or -.
+        sanitized = sanitized.replaceAll("^[._-]+|[._-]+$", "");
+        if (sanitized.length() == 0) {
+            return "unknown";
+        }
+        return sanitized;
+    }
+
+    private static void clearCachedLogFiles(File logsDir) {
+        File[] files = logsDir.listFiles();
+        if (files == null) {
+            return;
+        }
+
+        for (File file : files) {
+            if (!file.isFile()) {
+                continue;
+            }
+
+            String name = file.getName();
+            if (name.endsWith(".log") || name.endsWith(".txt")) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////

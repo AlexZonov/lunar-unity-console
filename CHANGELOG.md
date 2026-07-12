@@ -2,6 +2,10 @@
 
 ## v.1.9.5 - 07/12/2026
 
+**Changes:**
+
+* **iOS / Android:** share console logs as files instead email, you can select mail application or some other
+
 **Fixes:**
 
 * **iOS:** fixed iOS exception warning banner layout on orientation change

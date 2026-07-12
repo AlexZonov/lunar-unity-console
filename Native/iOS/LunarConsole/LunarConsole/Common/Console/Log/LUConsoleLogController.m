@@ -20,18 +20,140 @@
 //
 
 
-#import <MessageUI/MessageUI.h>
+#import <UIKit/UIKit.h>
 
 #import "LUConsoleLogController.h"
 
 #import "Lunar.h"
 
 static const CGFloat kMinWidthToResizeSearchBar = 480;
+static NSString * const kLunarConsoleLogsDirectoryName = @"lunar_console_logs";
+
+static NSString *LUConsoleSanitizeFileNameComponent(NSString *value)
+{
+    if (value.length == 0) {
+        return @"unknown";
+    }
+
+    NSString *trimmed = [value stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (trimmed.length == 0) {
+        return @"unknown";
+    }
+
+    // Keep only filesystem-safe characters; replace everything else with underscore.
+    NSString *sanitized = [trimmed stringByReplacingOccurrencesOfString:@"[^a-zA-Z0-9._-]+"
+                                                             withString:@"_"
+                                                                options:NSRegularExpressionSearch
+                                                                  range:NSMakeRange(0, trimmed.length)];
+    // Collapse repeated underscores from consecutive replacements.
+    sanitized = [sanitized stringByReplacingOccurrencesOfString:@"_+"
+                                                     withString:@"_"
+                                                        options:NSRegularExpressionSearch
+                                                          range:NSMakeRange(0, sanitized.length)];
+    // Strip leading/trailing separators so the component does not start or end with . _ or -.
+    sanitized = [sanitized stringByReplacingOccurrencesOfString:@"^[._-]+|[._-]+$"
+                                                     withString:@""
+                                                        options:NSRegularExpressionSearch
+                                                          range:NSMakeRange(0, sanitized.length)];
+    if (sanitized.length == 0) {
+        return @"unknown";
+    }
+    return sanitized;
+}
+
+static NSString *LUConsoleLogsDirectoryPath(NSError **outError)
+{
+    NSArray<NSString *> *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cachesPath = paths.firstObject;
+    if (cachesPath.length == 0) {
+        if (outError != NULL) {
+            *outError = [NSError errorWithDomain:@"LunarConsole"
+                                            code:1
+                                        userInfo:@{ NSLocalizedDescriptionKey: @"Can't share log" }];
+        }
+        return nil;
+    }
+
+    NSString *directoryPath = [cachesPath stringByAppendingPathComponent:kLunarConsoleLogsDirectoryName];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    BOOL isDirectory = NO;
+    if (![fileManager fileExistsAtPath:directoryPath isDirectory:&isDirectory]) {
+        if (![fileManager createDirectoryAtPath:directoryPath
+                    withIntermediateDirectories:YES
+                                     attributes:nil
+                                          error:outError]) {
+            return nil;
+        }
+    } else if (!isDirectory) {
+        if (outError != NULL) {
+            *outError = [NSError errorWithDomain:@"LunarConsole"
+                                            code:2
+                                        userInfo:@{ NSLocalizedDescriptionKey: @"Can't share log" }];
+        }
+        return nil;
+    }
+
+    return directoryPath;
+}
+
+static void LUConsoleClearCachedLogFiles(NSString *directoryPath)
+{
+    NSArray<NSString *> *files = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:directoryPath error:nil];
+    for (NSString *fileName in files) {
+        if ([fileName hasSuffix:@".log"] || [fileName hasSuffix:@".txt"]) {
+            NSString *filePath = [directoryPath stringByAppendingPathComponent:fileName];
+            [[NSFileManager defaultManager] removeItemAtPath:filePath error:nil];
+        }
+    }
+}
+
+static NSString *LUConsoleCreateLogFileName(void)
+{
+    NSBundle *bundle = [NSBundle mainBundle];
+    NSString *bundleId = LUConsoleSanitizeFileNameComponent(bundle.bundleIdentifier);
+    NSString *version = LUConsoleSanitizeFileNameComponent(
+        [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"]);
+    NSString *build = LUConsoleSanitizeFileNameComponent(
+        [bundle objectForInfoDictionaryKey:@"CFBundleVersion"]);
+
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    formatter.dateFormat = @"yyyy-MM-dd_HH-mm-ss";
+    NSString *timestamp = [formatter stringFromDate:[NSDate date]];
+
+    return [NSString stringWithFormat:@"%@_%@_%@_%@.log", bundleId, version, build, timestamp];
+}
+
+static NSURL *LUConsoleWriteLogFile(NSString *text, NSError **outError)
+{
+    NSString *directoryPath = LUConsoleLogsDirectoryPath(outError);
+    if (directoryPath == nil) {
+        return nil;
+    }
+
+    LUConsoleClearCachedLogFiles(directoryPath);
+
+    NSString *filePath = [directoryPath stringByAppendingPathComponent:LUConsoleCreateLogFileName()];
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (data == nil) {
+        if (outError != NULL) {
+            *outError = [NSError errorWithDomain:@"LunarConsole"
+                                            code:3
+                                        userInfo:@{ NSLocalizedDescriptionKey: @"Can't share log" }];
+        }
+        return nil;
+    }
+
+    if (![data writeToFile:filePath options:NSDataWritingAtomic error:outError]) {
+        return nil;
+    }
+
+    return [NSURL fileURLWithPath:filePath];
+}
 
 @interface LUConsoleLogController () <LunarConsoleDelegate, LUToggleButtonDelegate,
                                       UITableViewDataSource, UITableViewDelegate,
                                       UISearchBarDelegate,
-                                      MFMailComposeViewControllerDelegate,
                                       LUTableViewTouchDelegate,
                                       LUConsoleLogMenuControllerDelegate,
                                       LUConsolePopupControllerDelegate> {
@@ -238,24 +360,34 @@ static const CGFloat kMinWidthToResizeSearchBar = 480;
 
 - (IBAction)onEmail:(id)sender
 {
-    if (![MFMailComposeViewController canSendMail]) {
-        LUDisplayAlertView(@"Lunar Mobile Console", @"Log email cannot be sent.\nMake sure your device is set up for sending email.");
-        return;
-    }
-
-    NSString *bundleName = [[NSBundle mainBundle].infoDictionary objectForKey:@"CFBundleName"];
+    // Large logs are shared as a file (parity with Android) instead of an email body.
     NSString *text = [self.console getText];
+    UIView *anchorView = [sender isKindOfClass:[UIView class]] ? (UIView *)sender : self.controlButtonsView;
 
-    MFMailComposeViewController *controller = [[MFMailComposeViewController alloc] init];
-    [controller setMailComposeDelegate:self];
-    [controller setSubject:[NSString stringWithFormat:@"%@ console log", bundleName]];
-    [controller setMessageBody:text isHTML:NO];
-    if (_emails.count > 0) {
-        [controller setToRecipients:_emails];
-    }
-    if (controller) {
-        [self presentViewController:controller animated:YES completion:nil];
-    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *error = nil;
+        NSURL *fileURL = LUConsoleWriteLogFile(text, &error);
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (fileURL == nil) {
+                NSString *message = error.localizedDescription.length > 0 ? error.localizedDescription : @"Can't share log";
+                LUDisplayAlertView(@"Lunar Mobile Console", message);
+                return;
+            }
+
+            UIActivityViewController *activity =
+                [[UIActivityViewController alloc] initWithActivityItems:@[ fileURL ]
+                                                  applicationActivities:nil];
+
+            UIPopoverPresentationController *popover = activity.popoverPresentationController;
+            if (popover != nil) {
+                popover.sourceView = anchorView;
+                popover.sourceRect = anchorView.bounds;
+            }
+
+            [self presentViewController:activity animated:YES completion:nil];
+        });
+    });
 }
 
 - (IBAction)onSettings:(id)sender
@@ -514,20 +646,6 @@ static const CGFloat kMinWidthToResizeSearchBar = 480;
 - (void)searchBarSearchButtonClicked:(UISearchBar *)searchBar
 {
     [searchBar resignFirstResponder];
-}
-
-#pragma mark -
-#pragma mark MFMailComposeViewControllerDelegate
-
-- (void)mailComposeController:(MFMailComposeViewController *)controller didFinishWithResult:(MFMailComposeResult)result error:(nullable NSError *)error
-{
-    if (error != nil) {
-        LUDisplayAlertView(@"Lunar Mobile Console", [NSString stringWithFormat:@"Log was not sent: %@", error]);
-    } else if (result != MFMailComposeResultSent) {
-        LUDisplayAlertView(@"Lunar Mobile Console", @"Log was not sent");
-    }
-
-    [controller dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark -
