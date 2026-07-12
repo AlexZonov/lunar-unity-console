@@ -1,5 +1,39 @@
 # Lunar Unity Mobile Console
 
+## About This Fork
+
+This repository is a maintained fork of the original [SpaceMadness/lunar-unity-console](https://github.com/SpaceMadness/lunar-unity-console) project.  
+Maintained by **AlexZonov** ([@AlexZonov](https://github.com/AlexZonov)).
+
+The fork focuses on keeping the plugin working with modern Unity and platform APIs (Unity 6, Android GameActivity, iOS `UIWindowScene`), fixing long-standing mobile bugs, and improving the builder workflow.
+
+### Changes in This Fork
+
+#### Android
+- Unity 6 support fixes.
+- Fixed broken multi-touch handling.
+- Added **GameActivity** support (stable touch detection).
+- Share console logs as files instead of embedding them in `EXTRA_TEXT` (avoids Android ~1 MB binder / `TransactionTooLargeException` limit).
+
+#### iOS
+- Added **UIWindowScene** support ([#235](https://github.com/SpaceMadness/lunar-unity-console/issues/235)).
+- Fixed Xcode plugin export path and plugin name (`LunarConsole`, matching `Constants.PluginName`).
+- Allow `LUNAR_CONSOLE_EXPORT_IOS_FILES` to be defined dynamically before build.
+- Fixed orientation bug ([#215](https://github.com/SpaceMadness/lunar-unity-console/issues/215)).
+- Fixed exception warning banner layout on orientation change.
+- Share console logs as files via the system share sheet.
+
+#### Builder / Tooling
+- Implemented a **GUI build tool**.
+- Fixed file checks in the builder pipeline.
+
+#### Other
+- Removed BOM / ZWNBSP characters from scripts that could break compilation or tooling.
+
+See [CHANGELOG.md](CHANGELOG.md) for version-by-version details (`v1.9.2`–`latest`).
+
+---
+
 [![Build Status](https://travis-ci.com/SpaceMadness/lunar-unity-console.svg?branch=master)](https://travis-ci.com/SpaceMadness/lunar-unity-console)
 [![saythanks](https://img.shields.io/badge/say-thanks-ff69b4.svg)](https://saythanks.io/to/weeeBox)
 
