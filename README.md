@@ -22,6 +22,7 @@ The fork focuses on keeping the plugin working with modern Unity and platform AP
 - Fixed orientation bug ([#215](https://github.com/SpaceMadness/lunar-unity-console/issues/215)).
 - Fixed exception warning banner layout on orientation change.
 - Share console logs as files via the system share sheet.
+- Fixed crash on showing an alert (invalid variable/setting value, log share error, FREE version lock) — deprecated `UIAlertView` raises an exception on iOS 26, replaced with `UIAlertController`.
 
 #### Builder / Tooling
 - Implemented a **GUI build tool**.
