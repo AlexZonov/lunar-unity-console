@@ -41,17 +41,22 @@ static UIInterfaceOrientationMask LUInterfaceOrientationMaskFromOrientation(UIIn
     }
 }
 
-void LUDisplayAlertView(NSString *title, NSString *message)
+// UIAlertView raises an exception on iOS 26(and on UIScene based apps before that), so the alert
+// has to be presented by the controller that shows it: the console lives in its own LUWindow and
+// guessing a window instead would pick a wrong one(there are up to 4 of them on the same level).
+void LUDisplayAlertView(UIViewController *presenter, NSString *title, NSString *message)
 {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:title
-                                                        message:message
-                                                       delegate:nil
-                                              cancelButtonTitle:@"OK"
-                                              otherButtonTitles:nil];
-    [alertView show];
-#pragma clang diagnostic pop
+    while (presenter.presentedViewController != nil) {
+        presenter = presenter.presentedViewController;
+    }
+
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                  message:message
+                                                           preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK"
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [presenter presentViewController:alert animated:YES completion:nil];
 }
 
 UIWindowScene* LUGetWindowScene() {

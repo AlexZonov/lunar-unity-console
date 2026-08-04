@@ -371,7 +371,7 @@ static NSURL *LUConsoleWriteLogFile(NSString *text, NSError **outError)
         dispatch_async(dispatch_get_main_queue(), ^{
             if (fileURL == nil) {
                 NSString *message = error.localizedDescription.length > 0 ? error.localizedDescription : @"Can't share log";
-                LUDisplayAlertView(@"Lunar Mobile Console", message);
+                LUDisplayAlertView(self, @"Lunar Mobile Console", message);
                 return;
             }
 

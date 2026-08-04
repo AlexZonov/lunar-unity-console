@@ -189,7 +189,7 @@
     }
     else
     {
-        LUDisplayAlertView(@"Input Error", [NSString stringWithFormat:@"Invalid value: '%@'", valueText]);
+        LUDisplayAlertView(self, @"Input Error", [NSString stringWithFormat:@"Invalid value: '%@'", valueText]);
     }
 }
 

@@ -331,17 +331,18 @@ static id<LUTextFieldInputValidator> _floatValidator;
 
 - (void)lockButtonClick:(id)sender
 {
-	NSArray *actions = @[
-        [[LUAlertAction alloc] initWithTitle:@"Close" handler:nil],
-		[[LUAlertAction alloc] initWithTitle:@"Learn More" handler:^(LUAlertAction *action) {
-			[[NSNotificationCenter defaultCenter] postNotificationName:LUConsoleCheckFullVersionNotification
-																object:nil
-															  userInfo:@{ LUConsoleCheckFullVersionNotificationSource : @"settings" }];
-			
-			[[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://goo.gl/UHej7v"]];
-		}],
-	];
-	[LUUIHelper showAlertViewWithTitle:@"PRO only feature2" message:@"Not available in FREE version" actions:actions];
+	UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"PRO only feature2"
+																  message:@"Not available in FREE version"
+														   preferredStyle:UIAlertControllerStyleAlert];
+	[alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleCancel handler:nil]];
+	[alert addAction:[UIAlertAction actionWithTitle:@"Learn More" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+		[[NSNotificationCenter defaultCenter] postNotificationName:LUConsoleCheckFullVersionNotification
+															object:nil
+														  userInfo:@{ LUConsoleCheckFullVersionNotificationSource : @"settings" }];
+
+		[[UIApplication sharedApplication] openURL:[NSURL URLWithString:@"https://goo.gl/UHej7v"]];
+	}]];
+	[self presentViewController:alert animated:YES completion:nil];
 }
 
 #pragma mark -
@@ -386,7 +387,7 @@ static id<LUTextFieldInputValidator> _floatValidator;
 
 - (void)textFieldInputDidBecomeInvalid:(LUTextField *)textField
 {
-    LUDisplayAlertView(@"Input Error", [NSString stringWithFormat:@"Invalid value: '%@'", textField.text]);
+    LUDisplayAlertView(self, @"Input Error", [NSString stringWithFormat:@"Invalid value: '%@'", textField.text]);
 }
 
 #pragma mark -

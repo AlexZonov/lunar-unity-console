@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.6 - 08/04/2026
+
+**Fixes:**
+
+* **iOS:** fixed crash on showing an alert(invalid variable/setting value, log share error, FREE version lock) — deprecated `UIAlertView` raises an exception on iOS 26, replaced with `UIAlertController`
+
 ## v.1.9.5 - 07/12/2026
 
 **Changes:**

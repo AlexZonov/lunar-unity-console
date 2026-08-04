@@ -23,7 +23,7 @@
 #import <UIKit/UIKit.h>
 
 // UI-related functions
-void   LUDisplayAlertView(NSString *title, NSString *message);
+void   LUDisplayAlertView(UIViewController *presenter, NSString *title, NSString *message);
 CGRect LUGetScreenBounds(void);
 UIWindowScene* LUGetWindowScene(void) NS_AVAILABLE_IOS(13_0);
 
