@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.7 - 08/24/2026
+
+**Fixes:**
+
+* **Android:** fixed crash on app start in projects without `androidx` — the plugin declared `androidx.core.content.FileProvider` in its manifest and the missing class killed the process during provider installation, before Unity even started; replaced with a built-in file provider, so the plugin no longer has runtime `androidx` dependencies
+
 ## v.1.9.6 - 08/04/2026
 
 **Fixes:**

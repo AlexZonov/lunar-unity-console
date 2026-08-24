@@ -9,13 +9,9 @@
             android:name=".settings.PluginSettingsActivity" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".console.LunarConsoleFileProvider"
             android:authorities="${applicationId}.lunarconsole.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/lunar_console_file_paths" />
-        </provider>
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

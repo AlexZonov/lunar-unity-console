@@ -52,8 +52,6 @@ import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
-import androidx.core.content.FileProvider;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.ref.WeakReference;
@@ -87,7 +85,6 @@ import static spacemadness.com.lunarconsole.debug.Tags.CONSOLE;
 public class ConsoleLogView extends AbstractConsoleView implements
         LunarConsoleListener,
         LogTypeButton.OnStateChangeListener {
-    private static final String FILE_PROVIDER_AUTHORITY_SUFFIX = ".lunarconsole.fileprovider";
     private static final String LOG_CACHE_DIR_NAME = "lunar_console_logs";
 
     private final WeakReference<Activity> activityRef;
@@ -281,7 +278,7 @@ public class ConsoleLogView extends AbstractConsoleView implements
     }
 
     // Android binder transaction limit (~1 MB) makes large EXTRA_TEXT unreliable,
-    // so the log is shared as a FileProvider attachment instead of an email body.
+    // so the log is shared as a content provider attachment instead of an email body.
     private void sendConsoleOutputByEmail() {
         final Context context = getContext();
         final String packageName = context.getPackageName();
@@ -314,7 +311,7 @@ public class ConsoleLogView extends AbstractConsoleView implements
     }
 
     private static Uri writeConsoleLogFile(Context context, String outputText) throws Exception {
-        File logsDir = new File(context.getCacheDir(), LOG_CACHE_DIR_NAME);
+        File logsDir = getLogsDir(context);
         if (!logsDir.exists() && !logsDir.mkdirs()) {
             throw new Exception("Unable to create lunar console logs directory");
         }
@@ -334,11 +331,11 @@ public class ConsoleLogView extends AbstractConsoleView implements
             }
         }
 
-        return FileProvider.getUriForFile(
-                context,
-                context.getPackageName() + FILE_PROVIDER_AUTHORITY_SUFFIX,
-                logFile
-        );
+        return LunarConsoleFileProvider.getUriForFile(context, logFile);
+    }
+
+    static File getLogsDir(Context context) {
+        return new File(context.getCacheDir(), LOG_CACHE_DIR_NAME);
     }
 
     private static void startShareConsoleLog(Context context, String subject, Uri fileUri, String[] recipients) {
