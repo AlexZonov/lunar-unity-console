@@ -63,6 +63,8 @@ namespace LunarConsoleEditorInternal
             {
                 pluginPath = Path.Combine(buildPath, "Libraries", Constants.PluginName);
                 FileUtil.DeleteFileOrDirectory(pluginPath);
+                // FileUtil.CopyFileOrDirectory fails with "No such file or directory" on macOS when the target's parent folder is missing
+                Directory.CreateDirectory(Path.GetDirectoryName(pluginPath));
                 FileUtil.CopyFileOrDirectory(EditorConstants.EditorPathIOS, pluginPath);
                 // Clean up meta files
                 string[] files = Directory.GetFiles(pluginPath, "*.meta", System.IO.SearchOption.AllDirectories);

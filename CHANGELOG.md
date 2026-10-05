@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.8 - 10/05/2026
+
+**Fixes:**
+
+* **iOS:** fixed `Copying file failed ... No such file or directory` error on build with `LUNAR_CONSOLE_EXPORT_IOS_FILES` define on macOS — `FileUtil.CopyFileOrDirectory` doesn't create missing parent folders, now `Libraries` folder is created before copying plugin files
+
 ## v.1.9.7 - 08/24/2026
 
 **Fixes:**
