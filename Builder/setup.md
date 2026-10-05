@@ -29,7 +29,14 @@ TBD
 - Note: if using the bundled Unity Android SDK, license acceptance and build-tools installation may be required. The `build.py` GUI script can handle this automatically.
 
 # GUI Build Script (Windows / macOS)
-On macOS with Homebrew Python, tkinter needs `brew install python-tk`. `invoke` is run as `python -m invoke`, so it doesn't need to be on `PATH`.
+On macOS don't use the system/Xcode `python3`: it ships deprecated Tk 8.5 and the window renders blank (only buttons visible). Use Homebrew Python in a venv:
+```
+brew install python-tk@3.13
+python3.13 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python build.py
+```
+`invoke` is run as `python -m invoke`, so it doesn't need to be on `PATH`.
 
 From the `Builder/` directory (after `pip install -r requirements.txt` if needed):
 
