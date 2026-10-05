@@ -1,3 +1,6 @@
+# Lazy annotations: `Path | None` etc. on Python 3.9 (macOS system/Xcode python3)
+from __future__ import annotations
+
 import ctypes
 import json
 import os
