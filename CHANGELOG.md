@@ -4,7 +4,8 @@
 
 **Fixes:**
 
-* **iOS:** fixed `Copying file failed ... No such file or directory` error on build with `LUNAR_CONSOLE_EXPORT_IOS_FILES` define on macOS — `FileUtil.CopyFileOrDirectory` doesn't create missing parent folders, now `Libraries` folder is created before copying plugin files
+* **iOS:** clear build error when native iOS files (`Assets/LunarConsole/Editor/iOS`) are missing in the dev project — previously the build failed with a confusing `Copying file failed ... No such file or directory`; generate them with the Builder (`invoke _full _build-native-ios`)
+* **iOS:** fixed swipe gesture sometimes not opening the console after app relaunch until the console was opened another way — the gesture was attached to the key window at startup, which could be missing or belong to another SDK/system alert; now it's attached to Unity's main window
 
 ## v.1.9.7 - 08/24/2026
 

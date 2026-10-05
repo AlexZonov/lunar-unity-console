@@ -375,19 +375,20 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
         gr.numberOfTouchesRequired = 2;
         gr.direction = UISwipeGestureRecognizerDirectionDown;
 
-        UIWindow *keyWin = [self keyWindow];
-        if (keyWin) {
-            [keyWin addGestureRecognizer:gr];
+        // Attach to Unity's window, not the key window: at startup the key window may be missing or belong to
+        // another SDK/system alert, and the gesture would be lost until the console is opened some other way
+        UIWindow *window = UnityGetMainWindow();
+        if (window) {
+            [window addGestureRecognizer:gr];
+            _gestureRecognizer = gr;
         }
-
-        _gestureRecognizer = gr;
     }
 }
 
 - (void)disableGestureRecognition
 {
     if (_gestureRecognizer != nil) {
-        [[self keyWindow] removeGestureRecognizer:_gestureRecognizer];
+        [_gestureRecognizer.view removeGestureRecognizer:_gestureRecognizer];
         _gestureRecognizer = nil;
     }
 }
@@ -469,11 +470,6 @@ static NSString *const kScriptMessageTrackEvent = @"track_event";
 
 #pragma mark -
 #pragma mark Properties
-
-- (UIWindow *)keyWindow
-{
-    return [UIApplication sharedApplication].keyWindow;
-}
 
 - (NSInteger)capacity
 {

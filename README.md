@@ -23,7 +23,7 @@ The fork focuses on keeping the plugin working with modern Unity and platform AP
 - Fixed exception warning banner layout on orientation change.
 - Share console logs as files via the system share sheet.
 - Fixed crash on showing an alert (invalid variable/setting value, log share error, FREE version lock) — deprecated `UIAlertView` raises an exception on iOS 26, replaced with `UIAlertController`.
-- Fixed `Copying file failed ... No such file or directory` error on build with `LUNAR_CONSOLE_EXPORT_IOS_FILES` on macOS (missing `Libraries` folder in the Xcode project).
+- Fixed swipe gesture sometimes not opening the console after app relaunch (gesture is attached to Unity's main window instead of the key window).
 
 #### Builder / Tooling
 - Implemented a **GUI build tool**.
