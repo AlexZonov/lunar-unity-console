@@ -1,6 +1,8 @@
 # Unity symlinks
 ## MacOS
-- TBD
+- `ln -sfn /Applications/Unity/Hub/Editor/2019.4.41f1 /Applications/Unity-Publish`
+- `ln -sfn /Applications/Unity/Hub/Editor/6000.2.6f2 /Applications/Unity-Export`
+- Or the **Create Symlinks** button in `build.py` (both links point to the selected editor)
 ## Linux
 - TBD
 ## Windows
@@ -9,7 +11,7 @@
 
 # JDK
 ## MacOS
-TBD
+Not needed: `build.py` uses Unity's bundled `PlaybackEngines/AndroidPlayer/OpenJDK`
 ## Linux
 TBD
 ## Windows
@@ -18,7 +20,7 @@ TBD
 
 # Android SDK
 ## MacOS
-- TBD
+- Not needed: `build.py` uses Unity's bundled `PlaybackEngines/AndroidPlayer/SDK`, **Setup Android SDK** accepts licenses and installs packages in place
 ## Linux
 - TBD
 ## Windows
@@ -26,7 +28,9 @@ TBD
 - `setx PATH "%PATH%;%ANDROID_HOME%\platform-tools" -m`
 - Note: if using the bundled Unity Android SDK, license acceptance and build-tools installation may be required. The `build.py` GUI script can handle this automatically.
 
-# GUI Build Script (Windows)
+# GUI Build Script (Windows / macOS)
+On macOS with Homebrew Python, tkinter needs `brew install python-tk`. `invoke` is run as `python -m invoke`, so it doesn't need to be on `PATH`.
+
 From the `Builder/` directory (after `pip install -r requirements.txt` if needed):
 
 1. Run `python build.py`.

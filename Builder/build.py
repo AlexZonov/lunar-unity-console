@@ -3,6 +3,7 @@ import json
 import os
 import queue
 import subprocess
+import sys
 import threading
 import tempfile
 from pathlib import Path
@@ -13,6 +14,9 @@ from tkinter import ttk
 
 SETTINGS_FILENAME = "build_gui_settings.json"
 GUI_CONFIG_FILENAME = "build_gui_config.json"
+IS_MAC = sys.platform == "darwin"
+# pip often puts the `invoke` script outside PATH (macOS user installs, venvs) — run it as a module instead.
+INVOKE = [sys.executable, "-m", "invoke"]
 
 
 class LunarConsoleBuilderApp:
@@ -248,8 +252,18 @@ class LunarConsoleBuilderApp:
             messagebox.showerror("Error", "Selected path is not a directory.")
             return
 
-        unity_exe = unity_path / "Editor" / "Unity.exe"
-        if not unity_exe.exists():
+        if IS_MAC:
+            # Hub layout: /Applications/Unity/Hub/Editor/<version>/Unity.app
+            if unity_path.suffix == ".app":
+                unity_path = unity_path.parent
+            if not (unity_path / "Unity.app").exists():
+                messagebox.showwarning(
+                    "Warning",
+                    "Could not find Unity.app in the selected folder.\n"
+                    "Please select the Unity version folder (e.g., /Applications/Unity/Hub/Editor/6000.2.6f2).",
+                )
+                return
+        elif not (unity_path / "Editor" / "Unity.exe").exists():
             candidates = list(unity_path.rglob("Editor/Unity.exe"))
             if candidates:
                 unity_path = candidates[0].parent.parent
@@ -265,8 +279,12 @@ class LunarConsoleBuilderApp:
         self._update_jdk_sdk_paths(unity_path)
 
     def _update_jdk_sdk_paths(self, unity_path: Path) -> None:
-        jdk = unity_path / "Editor" / "Data" / "PlaybackEngines" / "AndroidPlayer" / "OpenJDK"
-        sdk = unity_path / "Editor" / "Data" / "PlaybackEngines" / "AndroidPlayer" / "SDK"
+        if IS_MAC:
+            android_player = unity_path / "PlaybackEngines" / "AndroidPlayer"
+        else:
+            android_player = unity_path / "Editor" / "Data" / "PlaybackEngines" / "AndroidPlayer"
+        jdk = android_player / "OpenJDK"
+        sdk = android_player / "SDK"
 
         if jdk.exists():
             self.jdk_path_var.set(str(jdk))
@@ -346,6 +364,10 @@ class LunarConsoleBuilderApp:
             messagebox.showerror("Error", f"Selected path does not exist: {target}")
             return
 
+        if IS_MAC:
+            self._create_symlinks_mac(target)
+            return
+
         links = {
             r"C:\Program Files\Unity-Export": target,
             r"C:\Program Files\Unity-Publish": target,
@@ -387,15 +409,32 @@ class LunarConsoleBuilderApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to request admin privileges:\n{e}")
 
+    def _create_symlinks_mac(self, target: Path) -> None:
+        # /Applications is writable for admin users, no sudo needed. Must match Platform.unity_export/unity_publish.
+        for name in ("Unity-Export", "Unity-Publish"):
+            link = Path("/Applications") / name
+            try:
+                if link.is_symlink():
+                    link.unlink()
+                elif link.exists():
+                    self._log(f"[WARN] {link} already exists and is not a symlink. Skipping.\n")
+                    continue
+                link.symlink_to(target, target_is_directory=True)
+                self._log(f"{link} -> {target}\n")
+            except OSError as e:
+                messagebox.showerror("Error", f"Failed to create {link}:\n{e}")
+                return
+
     # ------------------------------------------------------------------
     # Android SDK Setup (licenses + packages from build_gui_config.json)
     # ------------------------------------------------------------------
     def _find_sdkmanager(self, sdk_path: Path) -> Path | None:
+        name = "sdkmanager" if IS_MAC else "sdkmanager.bat"
         candidates = [
             # cmdline-tools (preferred)
-            *(sdk_path / "cmdline-tools").rglob("bin/sdkmanager.bat"),
+            *(sdk_path / "cmdline-tools").rglob(f"bin/{name}"),
             # legacy tools
-            sdk_path / "tools" / "bin" / "sdkmanager.bat",
+            sdk_path / "tools" / "bin" / name,
         ]
         for c in candidates:
             if isinstance(c, Path) and c.exists():
@@ -416,7 +455,7 @@ class LunarConsoleBuilderApp:
         if not sdkmanager:
             messagebox.showerror(
                 "Error",
-                f"sdkmanager.bat not found in:\n{sdk_path}\n\n"
+                f"sdkmanager not found in:\n{sdk_path}\n\n"
                 "Make sure the Unity Android Player is installed.",
             )
             return
@@ -429,6 +468,10 @@ class LunarConsoleBuilderApp:
                 f"No packages listed under \"android_sdk_packages\" in {GUI_CONFIG_FILENAME}.\n"
                 "Add at least one sdkmanager package spec (e.g. build-tools;35.0.0).",
             )
+            return
+
+        if IS_MAC:
+            self._setup_android_sdk_mac(sdkmanager, packages)
             return
 
         pkg_lines = "\n".join(f"  • {p}" for p in packages)
@@ -476,6 +519,35 @@ class LunarConsoleBuilderApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to start SDK setup:\n{e}")
 
+    def _setup_android_sdk_mac(self, sdkmanager: Path, packages: list[str]) -> None:
+        if getattr(self, "_job_running", False):
+            messagebox.showwarning("Busy", "A build or export is already running.")
+            return
+
+        env = os.environ.copy()
+        jdk_str = self.jdk_path_var.get().strip()
+        if jdk_str:
+            env["JAVA_HOME"] = jdk_str
+
+        def run() -> None:
+            try:
+                self._start_progress()
+                self._run_command([str(sdkmanager), "--licenses"], sdkmanager.parent, env, stdin_text="y\n" * 60)
+                for pkg in packages:
+                    self._run_command([str(sdkmanager), pkg], sdkmanager.parent, env)
+                self._log("\n=== Android SDK setup complete ===\n")
+            except Exception as e:
+                self._log(f"\n!!! ERROR: {e} !!!\n")
+            finally:
+                self._stop_progress()
+                self._job_running = False
+                self.root.after(0, self._restore_ui)
+
+        self._job_running = True
+        self._set_toolbar_disabled(True)
+        self.log_text.delete("1.0", "end")
+        threading.Thread(target=run, daemon=True).start()
+
     # ------------------------------------------------------------------
     # Build & Export Unity package
     # ------------------------------------------------------------------
@@ -512,7 +584,7 @@ class LunarConsoleBuilderApp:
                 "Output: Builder/temp/packages/lunar-console-<cfg>-<version>.unitypackage\n\n"
             )
 
-            self._run_command(["invoke", task], self.builder_dir, env)
+            self._run_command([*INVOKE, task], self.builder_dir, env)
             self._log("\n=== Export completed successfully ===\n")
         except Exception as e:
             self._log(f"\n!!! ERROR: {e} !!!\n")
@@ -581,18 +653,24 @@ class LunarConsoleBuilderApp:
     def _restore_ui(self) -> None:
         self._set_toolbar_disabled(False)
 
-    def _run_command(self, cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
+    def _run_command(
+        self, cmd: list[str], cwd: Path, env: dict[str, str] | None = None, stdin_text: str | None = None
+    ) -> None:
         self._log(f">>> Running: {' '.join(cmd)}\n")
         with subprocess.Popen(
             cmd,
             cwd=str(cwd),
             env=env,
+            stdin=subprocess.PIPE if stdin_text is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
             errors="replace",
         ) as proc:
+            if stdin_text is not None:
+                proc.stdin.write(stdin_text)
+                proc.stdin.close()
             for line in proc.stdout:
                 self._log(line)
 
@@ -602,10 +680,10 @@ class LunarConsoleBuilderApp:
 
     def _build_android(self, jdk_path: Path, sdk_path: Path, config: str, build_type: str) -> None:
         android_dir = self.repo_dir / "Native" / "Android" / "LunarConsole"
-        gradlew = android_dir / "gradlew.bat"
+        gradlew = android_dir / ("gradlew" if IS_MAC else "gradlew.bat")
 
         if not gradlew.exists():
-            raise FileNotFoundError(f"gradlew.bat not found: {gradlew}")
+            raise FileNotFoundError(f"{gradlew.name} not found: {gradlew}")
 
         env = os.environ.copy()
         env["JAVA_HOME"] = str(jdk_path)
@@ -637,7 +715,7 @@ class LunarConsoleBuilderApp:
     def _build_ios(self, config: str) -> None:
         config_name = config.lower()
         # Invoke CLI uses hyphens, not underscores (see `invoke --list`)
-        cmd = ["invoke", f"_{config_name}", "_build-native-ios"]
+        cmd = [*INVOKE, f"_{config_name}", "_build-native-ios"]
 
         self._log("\n--- iOS build ---\n")
         self._run_command(cmd, self.builder_dir)
