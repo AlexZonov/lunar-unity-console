@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.9 - 10/20/2026
+
+**Changes:**
+
+* **iOS / Android:** shared and copied console log now includes stack traces for Error and Assert entries, not only for Exception — previously `Debug.LogError` / `Debug.LogAssertion` were exported as a single message line while the console showed the full stack trace
+
 ## v.1.9.8 - 10/05/2026
 
 **Fixes:**

@@ -387,7 +387,7 @@ public class ConsoleLogEntryList {
         int count = entries.size();
         for (ConsoleLogEntry entry : entries) {
             text.append(entry.message);
-            if (entry.type == ConsoleLogType.EXCEPTION && entry.hasStackTrace()) {
+            if (ConsoleLogType.isErrorType(entry.type) && entry.hasStackTrace()) {
                 text.append('\n');
                 text.append(entry.stackTrace);
             }

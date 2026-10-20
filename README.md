@@ -14,6 +14,7 @@ The fork focuses on keeping the plugin working with modern Unity and platform AP
 - Fixed broken multi-touch handling.
 - Added **GameActivity** support (stable touch detection).
 - Share console logs as files instead of embedding them in `EXTRA_TEXT` (avoids Android ~1 MB binder / `TransactionTooLargeException` limit).
+- Shared and copied console log includes stack traces for Error and Assert entries, not only for Exception.
 
 #### iOS
 - Added **UIWindowScene** support ([#235](https://github.com/SpaceMadness/lunar-unity-console/issues/235)).
@@ -24,6 +25,7 @@ The fork focuses on keeping the plugin working with modern Unity and platform AP
 - Share console logs as files via the system share sheet.
 - Fixed crash on showing an alert (invalid variable/setting value, log share error, FREE version lock) — deprecated `UIAlertView` raises an exception on iOS 26, replaced with `UIAlertController`.
 - Fixed swipe gesture sometimes not opening the console after app relaunch (gesture is attached to Unity's main window instead of the key window).
+- Shared and copied console log includes stack traces for Error and Assert entries, not only for Exception.
 
 #### Builder / Tooling
 - Implemented a **GUI build tool**.
