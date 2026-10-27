@@ -15,6 +15,7 @@ The fork focuses on keeping the plugin working with modern Unity and platform AP
 - Added **GameActivity** support (stable touch detection).
 - Share console logs as files instead of embedding them in `EXTRA_TEXT` (avoids Android ~1 MB binder / `TransactionTooLargeException` limit).
 - Shared and copied console log includes stack traces for Error and Assert entries, not only for Exception.
+- Fixed no touch input with the GameActivity entry point on Unity 6000.3+ (games-activity 4.x reads input only from its `SurfaceView` listeners).
 
 #### iOS
 - Added **UIWindowScene** support ([#235](https://github.com/SpaceMadness/lunar-unity-console/issues/235)).

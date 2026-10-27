@@ -1,5 +1,11 @@
 # Lunar Console Changelog
 
+## v.1.9.10 - 10/28/2026
+
+**Fixes:**
+
+* **Android:** fixed Unity receiving no touches with the GameActivity entry point on Unity 6000.3+ — the gesture overlay forwarded touches to `Activity.onTouchEvent`, which games-activity 4.x no longer overrides (it reads input from listeners on its `SurfaceView`); now the overlay passes each gesture to the view below it the way Android does and falls back to `Activity.onTouchEvent` only when no view takes it (games-activity 3.x)
+
 ## v.1.9.9 - 10/20/2026
 
 **Changes:**
